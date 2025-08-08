@@ -16,11 +16,11 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
     verificationToken: {
-      type: String,
+      type: String ,
       default: null,
     },
     resetPasswordToken: {
-      type: String,
+      type: String ,
       default: null,
     },
     resetPasswordExpires: {

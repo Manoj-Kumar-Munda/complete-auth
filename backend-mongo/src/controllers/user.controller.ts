@@ -39,9 +39,8 @@ const registerUser = asyncHandler(
       newUser.verificationToken = verificationToken;
       await newUser.save();
 
-
-  // Send verification email using service
-  await sendVerificationEmail(email, verificationToken);
+      // Send verification email using service
+      await sendVerificationEmail(email, verificationToken);
 
       return res
         .status(201)
@@ -58,4 +57,43 @@ const registerUser = asyncHandler(
   }
 );
 
-export { registerUser };
+const verifyUser = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const token = req?.params?.token;
+      console.log(token);
+
+      if (!token) {
+        throw new ApiError(400, "Invalid token");
+      }
+
+      // Find user by verification token
+      const user = await User.findOne({ verificationToken: token });
+      if (!user) {
+        throw new ApiError(404, "User not found");
+      }
+
+      // Verify user
+      user.isVerified = true;
+      user.verificationToken = "";
+      await user.save();
+
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { userId: user._id },
+            "User verified successfully"
+          )
+        );
+    } catch (error) {
+      next(error || new ApiError(500, "Internal Server Error"));
+    }
+  }
+);
+
+export {
+  registerUser,
+  verifyUser,
+};

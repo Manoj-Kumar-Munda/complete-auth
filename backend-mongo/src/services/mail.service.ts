@@ -15,7 +15,7 @@ export async function sendVerificationEmail(email: string, verificationToken: st
     from: process.env.MAIL_USER!,
     to: email,
     subject: "Verify your email",
-    text: `Please verify your email by clicking on the following link: ${process.env.CORS_ORIGIN}/api/v1/users/verify/token/${verificationToken}`,
+    text: `Please verify your email by clicking on the following link: ${process.env.CORS_ORIGIN}/api/v1/users/verify/${verificationToken}`,
   };
 
   await transport.sendMail(mailOptions);
