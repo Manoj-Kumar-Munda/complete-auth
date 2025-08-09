@@ -5,6 +5,8 @@ import { ApiResponse } from "../utils/apiResponse";
 import User from "../models/User.model";
 import { generateRandomString } from "../utils/helpers";
 import { sendVerificationEmail } from "../services/mail.service";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const registerUser = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -93,7 +95,67 @@ const verifyUser = asyncHandler(
   }
 );
 
-export {
-  registerUser,
-  verifyUser,
-};
+const login = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmailOrUsername, password } = req.body;
+
+      if (!userEmailOrUsername || !password) {
+        throw new ApiError(400, "All fields are required");
+      }
+
+      // Check if user exists
+      const user = await User.findOne({
+        $or: [
+          { email: userEmailOrUsername },
+          { username: userEmailOrUsername },
+        ],
+      });
+      if (!user) {
+        throw new ApiError(404, "User not found");
+      }
+
+      // Check password
+      const isMatch = await bcrypt.compare(password, user.password!);
+      if (!isMatch) {
+        throw new ApiError(401, "Invalid credentials");
+      }
+
+      const accessToken = jwt.sign(
+        { userId: user._id, role: user.role },
+        process.env.JWT_SECRET!,
+        {
+          expiresIn: "1d",
+        }
+      );
+
+      const refreshToken = jwt.sign(
+        { userId: user._id, role: user.role },
+        process.env.JWT_SECRET!,
+        {
+          expiresIn: "30d",
+        }
+      );
+
+      res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: true,
+        maxAge: 24 * 60 * 60 * 1000,
+      });
+
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      return res
+        .status(200)
+        .json(new ApiResponse(200, { userId: user._id }, "Login successful"));
+    } catch (error) {
+      next(error || new ApiError(500, "Internal Server Error"));
+    }
+  }
+);
+
+export { registerUser, verifyUser, login };

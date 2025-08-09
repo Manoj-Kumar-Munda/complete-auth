@@ -16,11 +16,11 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
     verificationToken: {
-      type: String ,
+      type: String,
       default: null,
     },
     resetPasswordToken: {
-      type: String ,
+      type: String,
       default: null,
     },
     resetPasswordExpires: {
@@ -34,10 +34,16 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre("save", async function (next) {
-  if(!this.isModified("password")) return next();
+  if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password!, 10);
   next();
 });
+
+userSchema.methods.isPasswordMatched = async function (
+  candidatePassword: string
+) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
 const User = mongoose.model("User", userSchema);
 export default User;
