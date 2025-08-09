@@ -158,4 +158,27 @@ const login = asyncHandler(
   }
 );
 
-export { registerUser, verifyUser, login };
+const getCurrentUser = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {      
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized");
+      }
+
+      const user = await User.findById(userId).select("-password");
+      if (!user) {
+        throw new ApiError(404, "User not found");
+      }
+
+      return res
+        .status(200)
+        .json(new ApiResponse(200, user, "User retrieved successfully"));
+    } catch (error) {
+      next(error || new ApiError(500, "Internal Server Error"));
+    }
+  }
+);
+
+export { registerUser, verifyUser, login, getCurrentUser };
