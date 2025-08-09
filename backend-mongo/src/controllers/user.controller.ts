@@ -160,7 +160,7 @@ const login = asyncHandler(
 
 const getCurrentUser = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    try {      
+    try {
       const userId = req.user?.userId;
 
       if (!userId) {
@@ -181,4 +181,18 @@ const getCurrentUser = asyncHandler(
   }
 );
 
-export { registerUser, verifyUser, login, getCurrentUser };
+const logoutUser = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.clearCookie("accessToken");
+      res.clearCookie("refreshToken");
+      return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Logout successful"));
+    } catch (error) {
+      next(new ApiError(500, "Internal Server Error"));
+    }
+  }
+);
+
+export { registerUser, verifyUser, login, getCurrentUser, logoutUser };
