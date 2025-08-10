@@ -133,7 +133,7 @@ const login = asyncHandler(
 
       const refreshToken = jwt.sign(
         { userId: user._id, role: user.role },
-        process.env.JWT_SECRET!,
+        process.env.JWT_REFRESH_SECRET!,
         {
           expiresIn: "30d",
         }
