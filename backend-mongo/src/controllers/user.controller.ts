@@ -4,7 +4,7 @@ import { ApiError } from "../utils/apiError";
 import { ApiResponse } from "../utils/apiResponse";
 import User from "../models/User.model";
 import { generateRandomString } from "../utils/helpers";
-import { sendVerificationEmail } from "../services/mail.service";
+import { sendEmail } from "../services/mail.service";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -26,7 +26,7 @@ const registerUser = asyncHandler(
 
       //create new user
       const newUser = await User.create({
-        name: username,
+        username,
         email,
         password,
       });
@@ -42,7 +42,9 @@ const registerUser = asyncHandler(
       await newUser.save();
 
       // Send verification email using service
-      await sendVerificationEmail(email, verificationToken);
+      const subject = "Verify your email";
+      const body = `Please verify your email by clicking on the following link: ${process.env.CORS_ORIGIN}/api/v1/users/verify/${verificationToken}`;
+      await sendEmail(email, subject, body);
 
       return res
         .status(201)
@@ -63,8 +65,6 @@ const verifyUser = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const token = req?.params?.token;
-      console.log(token);
-
       if (!token) {
         throw new ApiError(400, "Invalid token");
       }
@@ -106,13 +106,15 @@ const login = asyncHandler(
 
       // Check if user exists
       const user = await User.findOne({
-        $or: [
-          { email: userEmailOrUsername },
-          { username: userEmailOrUsername },
-        ],
+        username: userEmailOrUsername,
       });
+
       if (!user) {
         throw new ApiError(404, "User not found");
+      }
+
+      if (!user.isVerified) {
+        throw new ApiError(401, "Please verify your email");
       }
 
       // Check password
@@ -195,4 +197,82 @@ const logoutUser = asyncHandler(
   }
 );
 
-export { registerUser, verifyUser, login, getCurrentUser, logoutUser };
+const forgotPassword = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email } = req.body;
+
+      const user = await User.findOne({ email });
+      if (!user) {
+        throw new ApiError(404, "User not found");
+      }
+
+      const resetToken = generateRandomString();
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+
+      // Send email -> will send a frontend url in future
+      const subject = "Password Reset";
+      const body = `Click on the following link to reset your password: ${process.env.CORS_ORIGIN}/api/v1/users/reset-password/${resetToken}`;
+      await sendEmail(email, subject, body);
+
+      return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Password reset email sent"));
+    } catch (error) {
+      next(error || new ApiError(500, "Internal Server Error"));
+    }
+  }
+);
+
+const resetPassword = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { token } = req?.params;
+      const { newPassword, confirmPassword } = req?.body;
+
+      if (!token) {
+        throw new ApiError(400, "Invalid token");
+      }
+      if (!newPassword || !confirmPassword) {
+        throw new ApiError(400, "All fields are required");
+      }
+
+      if (newPassword !== confirmPassword) {
+        throw new ApiError(400, "Passwords do not match");
+      }
+
+      // Find user by token
+      const user = await User.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: new Date() },
+      });
+
+      if (!user) {
+        throw new ApiError(404, "Invalid or expired token");
+      }
+
+      // Update password and reset fields, then save
+      user.password = newPassword;
+      user.resetPasswordToken = "";
+      user.resetPasswordExpires = new Date(0);
+      await user.save();
+
+      return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Password reset successful"));
+    } catch (error) {
+      next(error || new ApiError(500, "Internal Server Error"));
+    }
+  }
+);
+export {
+  registerUser,
+  verifyUser,
+  login,
+  getCurrentUser,
+  logoutUser,
+  forgotPassword,
+  resetPassword,
+};
